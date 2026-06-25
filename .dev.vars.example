@@ -1,0 +1,30 @@
+# Local development secrets for `wrangler dev`.
+#
+# 1. Copy this file to `.dev.vars`  ->  cp .dev.vars.example .dev.vars
+# 2. Fill in the real values below.
+# 3. NEVER commit `.dev.vars` (it is gitignored). This template stays in the repo
+#    with EMPTY values so contributors know which secrets are required.
+#
+# Production secrets are NOT read from here — set them in Cloudflare with:
+#   bun wrangler secret put BOT_TOKEN
+#   bun wrangler secret put GEMINI_API_KEY
+#   bun wrangler secret put WEBHOOK_SECRET
+#
+# Non-secret config (COOLDOWN_SECONDS, ANTI_REPEAT_WINDOW, ...) lives in
+# wrangler.toml [vars]. GEMINI_MODEL also defaults there, but you can override it
+# locally below to experiment with models without editing the committed config —
+# a value in .dev.vars wins over wrangler.toml [vars] under `wrangler dev`.
+
+# Telegram bot token from @BotFather
+BOT_TOKEN=""
+
+# Google Gemini API key from Google AI Studio (https://aistudio.google.com/apikey)
+GEMINI_API_KEY=""
+
+# Shared secret used to validate incoming Telegram webhook requests.
+# Any long random string; must match the secret_token passed to setWebhook.
+WEBHOOK_SECRET=""
+
+# Optional: override the model for local experimentation (see docs/model.md).
+# Leave commented to use the wrangler.toml [vars] default.
+# GEMINI_MODEL="gemini-2.5-flash-lite"

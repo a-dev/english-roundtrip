@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -qF '.dev.vars' && { echo 'Blocked by project policy: .dev.vars is off-limits.' >&2; exit 2; } || exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

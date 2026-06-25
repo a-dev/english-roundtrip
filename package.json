@@ -1,0 +1,32 @@
+{
+  "name": "english-roundtrip",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "oxfmt": "^0.56.0",
+    "oxlint": "^1.71.0",
+    "wrangler": "^4.103.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "check": "bun run lint && bun run format:check && bun test && bun run typecheck",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "format": "oxfmt .",
+    "format:check": "oxfmt . --check",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "test": "bun test",
+    "typecheck": "wrangler types --check && tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^3.0.83",
+    "ai": "^6.0.208",
+    "grammy": "^1.44.0",
+    "zod": "^4.4.3"
+  }
+}

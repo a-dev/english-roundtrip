@@ -1,0 +1,19 @@
+name = "english-roundtrip"
+main = "src/index.ts"
+compatibility_date = "2026-06-23"
+compatibility_flags = ["nodejs_compat"]
+
+workers_dev = true
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "english-roundtrip"
+# Created via: bun wrangler d1 create english-roundtrip
+database_id = "ba6e1d64-9186-47c8-ae51-2ace02ef8948"
+migrations_dir = "src/data/migrations"
+
+[vars]
+GEMINI_MODEL = "gemini-flash-lite-latest"
+COOLDOWN_SECONDS = "3"
+ANTI_REPEAT_WINDOW = "10"

@@ -1,0 +1,42 @@
+# dependencies (bun install)
+node_modules
+
+# output
+out
+dist
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Cloudflare Wrangler local secrets — NEVER commit (this is a public repo).
+# .dev.vars holds BOT_TOKEN / GEMINI_API_KEY / WEBHOOK_SECRET for `wrangler dev`.
+# The committed template `.dev.vars.example` is explicitly NOT ignored.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# caches
+.eslintcache
+.cache
+.wrangler
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store

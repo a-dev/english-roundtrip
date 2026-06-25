@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["import", "promise", "typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "env": {
+    "builtin": true,
+    "node": true,
+    "serviceworker": true,
+    "worker": true
+  },
+  "globals": {
+    "Bun": "readonly",
+    "D1Database": "readonly",
+    "Env": "readonly"
+  },
+  "ignorePatterns": [
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".wrangler/**",
+    "coverage/**",
+    "dist/**",
+    "node_modules/**",
+    "out/**",
+    "src/data/migrations/**",
+    "worker-configuration.d.ts"
+  ],
+  "options": {
+    "reportUnusedDisableDirectives": "warn"
+  },
+  "rules": {}
+}
