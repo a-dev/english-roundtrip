@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 
 import { CEFR } from '../domain/levels';
 import { TASK_LANGUAGES } from '../domain/languages';
+import { TIP_TIERS } from '../domain/tips';
 import { getTopicsByCategory } from '../domain/topics';
 import {
   feedbackModeKeyboard,
@@ -10,6 +11,7 @@ import {
   postFeedbackKeyboard,
   settingsKeyboard,
   taskLanguageKeyboard,
+  tipKeyboard,
   topicKeyboard,
 } from './keyboards';
 
@@ -81,4 +83,8 @@ test('keyboard builders use the documented callback payloads', () => {
     ],
     [{ text: '⬅️ Back', callback_data: 'cfg:back' }],
   ]);
+
+  expect(tipKeyboard().inline_keyboard).toEqual(
+    TIP_TIERS.map((stars) => [{ text: `⭐ ${stars}`, callback_data: `tip:${stars}` }]),
+  );
 });

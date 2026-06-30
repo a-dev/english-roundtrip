@@ -23,6 +23,9 @@ This document is the technical source of truth: the stack, why each piece was ch
 | 13  | Feedback shape     | **Rich structured** (Zod)                                  | Consistent rendering, localizable, enables weak-spot analytics.                                                                             |
 | 14  | Catalog            | **Curated: 9 grammar + 6 vocab** (English skills)         | Core → advanced grammar; fast to ship; trivially extensible; task-language-independent.                                                     |
 | 15  | Rate limiting      | **Graceful 429 + per-user cooldown**                       | Protects shared Gemini quota; good UX under limits.                                                                                         |
+| 16  | Daily usage cap    | **10 sentences/day**, counted per *delivered* sentence at generation; resets **midnight UTC** | Per-user complement to the §6 cooldown, protecting the shared Gemini quota. Grading is never gated, so an in-flight round always finishes. `DAILY_FREE_LIMIT` is a hardcoded constant (`domain/limits.ts`). Counter lives on `stats` (§3). |
+| 17  | Cap exemption      | **`users.role`** (TEXT, `NULL` = capped); exempt set `{'premium','admin'}`, set **manually in D1** | Lifts the cap for supporters/myself with a manual DB edit — no deploy. A *defined* set (not "any non-null") leaves room for future non-exempt roles; the set is a constant in `domain/roles.ts`. |
+| 18  | Tipping            | **Telegram Stars (`XTR`)**, preset tiers, **gratitude-only** | The only in-Telegram payment rail. Tips grant **no** functional benefit and are fully **decoupled** from the cap exemption (§17) — deliberately *not* a paywall. Recorded in a `tips` ledger (§3); refunds via an out-of-band script (§13). |
 
 ---
 
@@ -61,6 +64,7 @@ CREATE TABLE IF NOT EXISTS users (
   task_language  TEXT,                          -- NULL until first-run onboarding; then 'ru'|'uk'|'es'|... (see domain/languages.ts)
   feedback_mode  TEXT NOT NULL DEFAULT 'english', -- 'english' | 'source'
   level          TEXT NOT NULL DEFAULT 'B1',     -- 'A2' | 'B1' | 'B2' | 'C1'
+  role           TEXT,                            -- NULL = capped; exempt set {'premium','admin'} (domain/roles.ts), set manually in D1
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -84,7 +88,9 @@ CREATE TABLE IF NOT EXISTS stats (
   total_correct   INTEGER NOT NULL DEFAULT 0,
   current_streak  INTEGER NOT NULL DEFAULT 0,
   longest_streak  INTEGER NOT NULL DEFAULT 0,
-  last_active_date TEXT
+  last_active_date TEXT,
+  daily_count      INTEGER NOT NULL DEFAULT 0,    -- sentences delivered on daily_count_date (§16)
+  daily_count_date TEXT                           -- 'YYYY-MM-DD' (UTC); when != today, daily_count is treated as 0
 );
 
 -- Per-category error tallies → "weak spots". Categories describe the English target.
@@ -94,11 +100,27 @@ CREATE TABLE IF NOT EXISTS error_stats (
   count       INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (telegram_id, category)
 );
+
+-- Tip ledger (Telegram Stars). One row per successful payment (§13).
+CREATE TABLE IF NOT EXISTS tips (
+  charge_id   TEXT PRIMARY KEY,                          -- telegram_payment_charge_id; dedupes retried successful_payment updates
+  telegram_id INTEGER NOT NULL REFERENCES users(telegram_id),
+  amount      INTEGER NOT NULL,                          -- stars (XTR), the invoice total
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
 ```
 
+> **Migration note:** the schema above is the *target* shape. Because V1 is already published
+> (live data exists), the §16–§18 additions (`users.role`, `stats.daily_count` /
+> `daily_count_date`, the `tips` table) land in a new **`0002_tips_and_cap.sql`**
+> (`ALTER TABLE … ADD COLUMN` + `CREATE TABLE tips`), **not** by editing `0001_init.sql`.
+
 Notes:
-- `task_language` is **nullable on purpose**: `NULL` means "never onboarded," which routes the user to the first-run task-language picker (§4). `ensureUser` inserts only `telegram_id`, so new rows get `task_language = NULL`, `feedback_mode = 'english'`, `level = 'B1'`.
-- `users` + `stats` are written rarely; `sessions` is written ~2×/round. All comfortably within D1 free limits.
+- `task_language` is **nullable on purpose**: `NULL` means "never onboarded," which routes the user to the first-run task-language picker (§4). `ensureUser` inserts only `telegram_id`, so new rows get `task_language = NULL`, `feedback_mode = 'english'`, `level = 'B1'`, `role = NULL`.
+- `role` is **nullable on purpose**: `NULL` (the default for every new row) means "capped." Exemption is granted by setting `role` to a value in the exempt set (`domain/roles.ts`), done **manually in D1** — there is no in-app path to assign a role.
+- `daily_count` is read+checked at generation and is **self-resetting via the write**: the increment is `daily_count = CASE WHEN daily_count_date = :today THEN daily_count + 1 ELSE 1 END, daily_count_date = :today`, so a new UTC day needs no cron. The check treats a stale `daily_count_date` as count 0.
+- `tips.charge_id` is the **primary key** so a redelivered `successful_payment` (Telegram retries on non-2xx) is an idempotent no-op rather than a double thank-you / double row.
+- `users` + `stats` are written rarely; `sessions` is written ~2×/round; `tips` is written only on payment. All comfortably within D1 free limits.
 - `recent_sentences` is capped (e.g., last 10) to keep the anti-repeat prompt short.
 - No raw exercise history in V1 (deferred to V2 spaced-repetition).
 
@@ -200,7 +222,7 @@ const GradingSchema = z.object({
 
 ## 7. UX & command spec
 
-- Commands registered via `setMyCommands`: `start, practice, topics, settings, language, level, stats, help, cancel`. `/language` opens the **task-language** picker; `/settings` opens the nested hub; `/level` opens the level sub-menu.
+- Commands registered via `setMyCommands`: `start, practice, topics, settings, language, level, stats, tip, help, cancel`. `/language` opens the **task-language** picker; `/settings` opens the nested hub; `/level` opens the level sub-menu. `/tip` opens the **tip jar** (preset Stars tiers, §13) and is also mentioned in `/help`.
 - **Settings are a nested hub.** One message shows the current selections inline (e.g. `🌐 Task language: Spanish`, `💬 Feedback: English`, `📊 Level: B1`); each opens a focused sub-keyboard and returns to the hub. The task-language sub-keyboard is reused for first-run onboarding.
 - **Inline keyboard `callback_data` scheme** (each < 64 bytes):
   - `cat:grammar` · `cat:vocab`
@@ -211,7 +233,9 @@ const GradingSchema = z.object({
   - `set:feedback:english` · `set:feedback:source`
   - `set:level:A2|B1|B2|C1`
   - `onb:task:<code>` — first-run onboarding choice (then → main menu)
+  - `tip:<stars>` — send a Stars invoice for the chosen tier; `<stars>` ∈ `50,100,250` (§13)
   - `cfg:back` (→ settings hub) · `nav:back` (→ main menu) · `nav:stats`
+- **Payment updates (Stars):** outside the callback/text routing above. `pre_checkout_query` → `answerPreCheckoutQuery(true)` within 10s (nothing to validate for Stars); `message:successful_payment` → idempotent `tips` insert + thank-you. Neither touches `sessions.state`, so tipping never disturbs an in-flight exercise.
 - **Message formatting:** Telegram **HTML parse mode** (only `<`, `>`, `&` need escaping) — safer than MarkdownV2 for AI-generated text. A central `ui/format.ts` renders the `GradingSchema` into a message; `ui/copy.ts` holds the English UI strings. The "translate" prompt names the source language (e.g. *"✍️ Translate from Spanish: «…»"*).
 - **Non-text input** while `awaiting_answer` → polite nudge, state unchanged.
 
@@ -295,12 +319,16 @@ src/
     db.ts               # D1 helpers / query wrappers
     users.ts            # profile repo (get-or-create, set task language / feedback mode / level)
     sessions.ts         # session repo + state transitions
-    stats.ts            # counters, streak, error tallies
+    stats.ts            # counters, streak, error tallies, daily-cap count (§16)
+    tips.ts             # tip ledger repo: idempotent insert, totals (§13)
     migrations/0001_init.sql
+    migrations/0002_tips_and_cap.sql   # role + daily_count columns + tips table
   domain/
     topics.ts           # the topic catalog (id, category, label, generationHint) — English skills
     languages.ts        # task-language catalog (code, English/native label) + language_code mapping
     levels.ts           # CEFR constants & descriptions
+    limits.ts           # DAILY_FREE_LIMIT constant + per-day count helpers (§16)
+    roles.ts            # exempt-role set + isExempt(role) (§17)
     state.ts            # session state enum + guards (incl. choosing_task_language)
   handlers/
     start.ts  help.ts  cancel.ts
@@ -310,6 +338,7 @@ src/
     settings.ts         # nested hub: task language, feedback mode, level
     stats.ts
     fallback.ts         # non-text / unknown input
+    tip.ts              # /tip jar: tier keyboard, invoice, pre_checkout, successful_payment (§13)
   ui/
     keyboards.ts        # inline keyboard builders (incl. language picker, nested settings)
     format.ts           # GradingSchema → HTML message
@@ -319,6 +348,59 @@ src/
 tests/                  # mirrors src/, bun test
 wrangler.toml
 package.json            # grammy, ai, @ai-sdk/google, zod (+ dev: @types/bun, wrangler)
+scripts/
+  refund.ts             # out-of-band Stars refund (refundStarPayment) — §13
 .dev.vars              # gitignored (local secrets — never committed)
 .dev.vars.example      # committed template, empty values
 ```
+
+---
+
+## 13. Daily usage cap & tipping (Telegram Stars)
+
+Two **independent** features (decision §18): tips grant **no** benefit and the cap exemption
+is a **manual** DB flag. They never reference each other in code or copy.
+
+### 13.1 Daily usage cap
+
+- **Unit & timing.** One *delivered* sentence = one count. The cap is checked and the counter
+  incremented in `handlers/practice.ts` `startExercise` — the single seam that covers both
+  topic-pick and **Next**. **Grading is never gated**: a sentence already shown can always be
+  answered. Failed generations don't count (increment only after a successful generation).
+- **Limit.** `DAILY_FREE_LIMIT = 10` (constant in `domain/limits.ts`).
+- **Reset.** Midnight **UTC**, via the self-resetting write on `stats.daily_count` /
+  `daily_count_date` (§3 Notes) — no cron.
+- **Exemption.** `isExempt(user.role)` (`domain/roles.ts`, exempt set `{'premium','admin'}`)
+  short-circuits the check entirely. Set `role` manually in D1.
+- **Concurrency.** The check runs *before* `beginAiRequest`; the existing per-user in-flight
+  lease (§6) already serialises generations, so two rapid taps can't double-spend — the second
+  is rejected as `in_flight` regardless. No extra locking needed.
+- **When capped.** Informational message only — e.g. *"You've done all 10 sentences for today —
+  great work! 🎉 Come back after midnight UTC for more."* **No** tip-jar mention (avoids any
+  paywall signal). New copy lives in `ui/copy.ts`.
+
+### 13.2 Tip jar
+
+- **Rail.** Telegram Stars — `bot.api.sendInvoice` with `currency: 'XTR'`, empty
+  `provider_token`, `prices: [{ label, amount: <stars> }]`. No real-money provider, no shipping.
+- **Tiers.** Preset buttons `⭐50 / ⭐100 / ⭐250` (`tip:<stars>` callbacks). Amounts are a single
+  constant — tune freely. No custom-amount entry (keeps the FSM untouched).
+- **Flow.** `/tip` → tier keyboard → invoice → `pre_checkout_query` answered `true` (≤10s) →
+  `successful_payment` → idempotent `tips` insert (`charge_id` PK) + thank-you. Orthogonal to the
+  practice FSM; `sessions.state` is never read or written by the tip path.
+- **Records.** `tips(charge_id, telegram_id, amount, created_at)`. Stores `charge_id` so refunds
+  are possible and enables a "total raised" query.
+- **Refunds.** Out-of-band `scripts/refund.ts` calling `refundStarPayment(user_id, charge_id)`
+  (look up `charge_id` in `tips`). No in-bot admin command / privileged webhook path.
+- **No new secrets.** Stars uses the existing `BOT_TOKEN`; no provider token, no new env var.
+
+### 13.3 Testing additions
+
+- **Cap logic** (`domain/limits.ts`): under/at/over limit; stale `daily_count_date` resets to 0;
+  exempt role bypasses; boundary at exactly `DAILY_FREE_LIMIT`.
+- **Roles** (`domain/roles.ts`): `isExempt` for each exempt value, `NULL`, and unknown values.
+- **Practice gating**: capped user is refused at `startExercise` *before* any AI call; exempt user
+  is not; grading of an already-shown sentence is unaffected by the cap.
+- **Tips repo**: insert is idempotent on duplicate `charge_id`.
+- **Routing**: `tip:<stars>` dispatch, `pre_checkout_query` auto-approve,
+  `successful_payment` → ledger + thank-you. Telegram payment APIs mocked.

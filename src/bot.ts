@@ -20,6 +20,12 @@ import {
 } from './handlers/settings';
 import { createStartHandler } from './handlers/start';
 import { handleStatsCallback, showStats } from './handlers/stats';
+import {
+  handlePreCheckout,
+  handleSuccessfulPayment,
+  handleTipCallback,
+  handleTipCommand,
+} from './handlers/tip';
 import type { HandlerDependencies } from './handlers/types';
 import { COPY } from './ui/copy';
 
@@ -31,6 +37,7 @@ export const BOT_COMMANDS = [
   { command: 'language', description: COPY.commands.language },
   { command: 'level', description: COPY.commands.level },
   { command: 'stats', description: COPY.commands.stats },
+  { command: 'tip', description: COPY.commands.tip },
   { command: 'help', description: COPY.commands.help },
   { command: 'cancel', description: COPY.commands.cancel },
 ] as const satisfies readonly BotCommand[];
@@ -82,6 +89,7 @@ export function createBot(token: string, dependencies: HandlerDependencies): Bot
   bot.command('language', (context) => showTaskLanguageSettings(context, dependencies));
   bot.command('level', (context) => showLevelSettings(context, dependencies));
   bot.command('stats', (context) => showStats(context, dependencies));
+  bot.command('tip', (context) => handleTipCommand(context, dependencies));
   bot.command('help', handleHelp);
   bot.command('cancel', createCancelHandler(dependencies));
 
@@ -93,8 +101,15 @@ export function createBot(token: string, dependencies: HandlerDependencies): Bot
     if (await handleMenuCallback(context, data, dependencies)) return;
     if (await handlePracticeCallback(context, data, dependencies)) return;
     if (await handleSettingsCallback(context, data, dependencies)) return;
+    if (await handleTipCallback(context, data)) return;
     await handleStatsCallback(context, data, dependencies);
   });
+
+  // Payment updates must be registered before the generic `message` fallback: a
+  // successful_payment is a service message with no text, so it slips past
+  // `message:text` but the fallback would otherwise nudge "send a translation".
+  bot.on('pre_checkout_query', handlePreCheckout);
+  bot.on('message:successful_payment', (context) => handleSuccessfulPayment(context, dependencies));
 
   bot.on('message:text', async (context, next) => {
     if (await handleTranslation(context, dependencies)) return;

@@ -48,6 +48,38 @@ function callbackUpdate(updateId: number, data: string) {
   } as never;
 }
 
+function preCheckoutUpdate(updateId: number, stars: number) {
+  return {
+    update_id: updateId,
+    pre_checkout_query: {
+      id: `pcq-${updateId}`,
+      from: learner,
+      currency: 'XTR',
+      total_amount: stars,
+      invoice_payload: `tip:${stars}`,
+    },
+  } as never;
+}
+
+function successfulPaymentUpdate(updateId: number, stars: number, chargeId: string) {
+  return {
+    update_id: updateId,
+    message: {
+      message_id: updateId,
+      date: 0,
+      chat,
+      from: learner,
+      successful_payment: {
+        currency: 'XTR',
+        total_amount: stars,
+        invoice_payload: `tip:${stars}`,
+        telegram_payment_charge_id: chargeId,
+        provider_payment_charge_id: '',
+      },
+    },
+  } as never;
+}
+
 function nonTextUpdate(updateId: number) {
   return {
     update_id: updateId,
@@ -265,6 +297,7 @@ test('help and cancel commands are registered and leave the session idle', async
     'language',
     'level',
     'stats',
+    'tip',
     'help',
     'cancel',
   ]);
@@ -354,6 +387,79 @@ test('AI failures leave the session retryable and explain rate limits clearly', 
     'Sorry, that took too long. Please try again in a moment.',
   );
   expect((await data.sessions.getSession(learner.id)).state).toBe(SessionState.AwaitingAnswer);
+});
+
+test('the /tip command offers the tip tiers without touching the practice session', async () => {
+  const { bot, calls, data } = await createFixture();
+
+  await bot.handleUpdate(messageUpdate(1, '/tip', true));
+
+  const prompt = calls.telegram.at(-1)?.payload;
+  expect(prompt?.text).toBe(
+    'Tips are optional and keep the bot running — thank you! Choose an amount:',
+  );
+  expect(prompt?.reply_markup).toMatchObject({
+    inline_keyboard: expect.arrayContaining([
+      expect.arrayContaining([{ text: '⭐ 100', callback_data: 'tip:100' }]),
+    ]),
+  });
+  // Tipping is state-agnostic: it must not advance or create a practice session.
+  expect((await data.sessions.getSession(learner.id)).state).toBe(SessionState.Idle);
+});
+
+test('a tip tier callback sends an XTR Stars invoice for that amount', async () => {
+  const { bot, calls } = await createFixture();
+
+  await bot.handleUpdate(callbackUpdate(1, 'tip:100'));
+
+  const invoice = calls.telegram.find((call) => call.method === 'sendInvoice')?.payload;
+  expect(invoice).toMatchObject({
+    currency: 'XTR',
+    payload: 'tip:100',
+    provider_token: '',
+    prices: [{ label: 'Tip ⭐ 100', amount: 100 }],
+  });
+});
+
+test('a tampered tip amount is ignored without sending an invoice', async () => {
+  const { bot, calls } = await createFixture();
+
+  await bot.handleUpdate(callbackUpdate(1, 'tip:9999'));
+
+  expect(calls.telegram.some((call) => call.method === 'sendInvoice')).toBe(false);
+});
+
+test('the Stars payment flow approves checkout, records the tip, and thanks once', async () => {
+  const { bot, calls } = await createFixture();
+  const replyText = (call: { payload: Record<string, unknown> }): string =>
+    typeof call.payload.text === 'string' ? call.payload.text : '';
+
+  await bot.handleUpdate(preCheckoutUpdate(1, 100));
+  expect(calls.telegram.at(-1)).toMatchObject({
+    method: 'answerPreCheckoutQuery',
+    payload: { ok: true },
+  });
+
+  await bot.handleUpdate(successfulPaymentUpdate(2, 100, 'charge-1'));
+  expect(calls.telegram.at(-1)?.payload.text).toBe('Thank you for the ⭐ 100 tip! 💛');
+
+  const stored = await database
+    .asD1()
+    .prepare('SELECT telegram_id, amount FROM tips WHERE charge_id = ?')
+    .bind('charge-1')
+    .first<{ telegram_id: number; amount: number }>();
+  expect(stored).toEqual({ telegram_id: learner.id, amount: 100 });
+
+  // A redelivered payment update is a service message — it neither re-thanks nor
+  // falls through to the translation/fallback path.
+  const thanksBefore = calls.telegram.filter((call) => replyText(call).startsWith('Thank you'));
+  await bot.handleUpdate(successfulPaymentUpdate(3, 100, 'charge-1'));
+  const thanksAfter = calls.telegram.filter((call) => replyText(call).startsWith('Thank you'));
+  expect(thanksAfter).toHaveLength(thanksBefore.length);
+  expect(calls.graded).toHaveLength(0);
+  expect(
+    calls.telegram.some((call) => replyText(call).includes('Please send your translation')),
+  ).toBe(false);
 });
 
 test('the top-level bot boundary sends an apology for an unexpected handler error', async () => {

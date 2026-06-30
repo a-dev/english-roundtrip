@@ -19,7 +19,10 @@ if (url.protocol !== 'https:') {
 await callTelegram('setWebhook', {
   url: url.toString(),
   secret_token: webhookSecret,
-  allowed_updates: ['message', 'callback_query'],
+  // `pre_checkout_query` is its own update type and must be listed explicitly,
+  // or Telegram never delivers it and Stars tips stall at checkout. The
+  // `successful_payment` confirmation arrives as a `message`, already covered.
+  allowed_updates: ['message', 'callback_query', 'pre_checkout_query'],
 });
 
 console.log(`Telegram webhook set to ${url.origin}${url.pathname}\n`);

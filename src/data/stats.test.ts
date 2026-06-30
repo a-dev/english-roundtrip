@@ -48,6 +48,39 @@ test('streaks advance once per consecutive active day and reset after a gap', as
   expect(afterGap.currentStreak).toBeGreaterThanOrEqual(0);
 });
 
+test('daily count increments within a UTC day and self-resets across a day boundary', async () => {
+  let currentTime = new Date('2026-06-23T10:00:00.000Z');
+  const stats = createStatsRepository(testD1.asD1(), { now: () => currentTime });
+
+  expect(await stats.getDailyCount(123)).toBe(0);
+
+  await stats.incrementDailyCount(123);
+  expect(await stats.getDailyCount(123)).toBe(1);
+
+  await stats.incrementDailyCount(123);
+  expect(await stats.getDailyCount(123)).toBe(2);
+
+  // A new UTC day reads the stale counter as 0 and the next increment restarts at 1.
+  currentTime = new Date('2026-06-24T00:30:00.000Z');
+  expect(await stats.getDailyCount(123)).toBe(0);
+
+  await stats.incrementDailyCount(123);
+  expect(await stats.getDailyCount(123)).toBe(1);
+});
+
+test('daily count is tracked per user', async () => {
+  const stats = createStatsRepository(testD1.asD1(), {
+    now: () => new Date('2026-06-23T10:00:00.000Z'),
+  });
+
+  await stats.incrementDailyCount(1);
+  await stats.incrementDailyCount(1);
+  await stats.incrementDailyCount(2);
+
+  expect(await stats.getDailyCount(1)).toBe(2);
+  expect(await stats.getDailyCount(2)).toBe(1);
+});
+
 test('error categories are tallied and returned in weakest-first top-N order', async () => {
   const stats = createStatsRepository(testD1.asD1(), {
     weakCategoryLimit: 2,
