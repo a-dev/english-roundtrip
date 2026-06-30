@@ -9,6 +9,7 @@ export interface User {
   taskLanguage: LanguageCode | null;
   feedbackMode: FeedbackMode;
   level: CEFR;
+  role: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -18,6 +19,7 @@ interface UserRow {
   taskLanguage: LanguageCode | null;
   feedbackMode: FeedbackMode;
   level: CEFR;
+  role: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +29,7 @@ const userColumns = `
     task_language AS taskLanguage,
     feedback_mode AS feedbackMode,
     level,
+    role,
     created_at AS createdAt,
     updated_at AS updatedAt
 `;
@@ -52,7 +55,11 @@ export function createUsersRepository(db: D1Database) {
   }
 
   /** Provision then update a single column, returning the updated row in one round trip. */
-  async function applyUpdate(telegramId: number, assignment: string, value: string): Promise<User> {
+  async function applyUpdate(
+    telegramId: number,
+    assignment: string,
+    value: string | null,
+  ): Promise<User> {
     await ensureUser(telegramId);
     const user = await first<UserRow>(
       db,
@@ -83,6 +90,11 @@ export function createUsersRepository(db: D1Database) {
 
     setLevel(telegramId: number, level: CEFR): Promise<User> {
       return applyUpdate(telegramId, 'level = ?', level);
+    },
+
+    /** Set or clear the daily-cap exemption role. Manual/admin use; not called by the bot at runtime. */
+    setRole(telegramId: number, role: string | null): Promise<User> {
+      return applyUpdate(telegramId, 'role = ?', role);
     },
   };
 }

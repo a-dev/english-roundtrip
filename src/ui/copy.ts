@@ -1,6 +1,7 @@
 import type { FeedbackMode } from '../data/users';
 import { getTaskLanguageLabels, type LanguageCode } from '../domain/languages';
 import type { CEFR } from '../domain/levels';
+import { DAILY_FREE_LIMIT } from '../domain/limits';
 
 const FEEDBACK_MODE_LABEL: Readonly<Record<FeedbackMode, string>> = {
   english: 'English',
@@ -37,6 +38,7 @@ export const COPY = {
     level: 'Change your CEFR level',
     language: 'Change task language',
     stats: 'View your progress',
+    tip: 'Support the bot with Telegram Stars',
     help: 'Learn how the bot works',
     cancel: 'Cancel the current exercise',
   },
@@ -72,6 +74,10 @@ export const COPY = {
     '',
     '<b>Privacy</b>',
     'The bot stores your Telegram ID, settings, and lightweight progress. Free-tier Gemini prompts may be used by Google for training, so do not send sensitive personal information.',
+    '',
+    '<b>Support</b>',
+    'Questions or feedback? Message <a href="https://t.me/a_dev">@a_dev</a>.',
+    'Enjoying it? Support the bot with /tip (Telegram Stars).',
     '',
     'Use /practice to begin, /stats to view progress, or /cancel to stop the current exercise.',
   ].join('\n'),
@@ -113,4 +119,9 @@ export const COPY = {
   unexpectedError: 'Sorry, something went wrong. Please try again in a moment.',
   generateFailed: 'I couldn’t create an exercise just now. Please try again in a moment.',
   gradeFailed: 'I couldn’t grade that answer just now. Please send it again in a moment.',
+  dailyCapReached: `You’ve done all ${DAILY_FREE_LIMIT} sentences for today — great work! 🎉 Come back after midnight UTC for more.`,
+  tipPrompt: 'Tips are optional and keep the bot running — thank you! Choose an amount:',
+  tipThanks: (stars: number) => `Thank you for the ⭐ ${stars} tip! 💛`,
+  tipInvoiceTitle: 'Tip — English Roundtrip',
+  tipInvoiceDescription: 'A voluntary tip to support the bot. Grants no extra features.',
 } as const;

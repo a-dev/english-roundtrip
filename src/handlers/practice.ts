@@ -2,6 +2,8 @@ import type { Context } from 'grammy';
 
 import { AiError } from '../ai/errors';
 import { FALLBACK_TASK_LANGUAGE, getTaskLanguageLabels } from '../domain/languages';
+import { isOverDailyLimit } from '../domain/limits';
+import { isExempt } from '../domain/roles';
 import { SessionState } from '../domain/state';
 import { getTopic, type Topic } from '../domain/topics';
 import { DEFAULT_COOLDOWN_SECONDS, isAiRequestInFlight } from '../ratelimit/cooldown';
@@ -77,6 +79,14 @@ export async function startExercise(
     dependencies.data.users.getOrCreateUser(id),
   ]);
 
+  if (!isExempt(user.role)) {
+    const used = await dependencies.data.stats.getDailyCount(id);
+    if (isOverDailyLimit(used)) {
+      await context.reply(COPY.dailyCapReached);
+      return;
+    }
+  }
+
   const request = await dependencies.data.sessions.beginAiRequest(
     id,
     SessionState.Generating,
@@ -107,6 +117,7 @@ export async function startExercise(
       await context.reply(
         COPY.translate(exercise.sourceSentence, getTaskLanguageLabels(taskLanguage).englishLabel),
       );
+      await dependencies.data.stats.incrementDailyCount(id);
     }
   } catch (error) {
     console.error('Exercise generation failed', { error, telegramId: id, topicId: topic.id });

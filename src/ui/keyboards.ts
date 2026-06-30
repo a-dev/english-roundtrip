@@ -3,6 +3,7 @@ import { InlineKeyboard } from 'grammy';
 import type { FeedbackMode } from '../data/users';
 import { TASK_LANGUAGES, type LanguageCode } from '../domain/languages';
 import { CEFR } from '../domain/levels';
+import { TIP_TIERS } from '../domain/tips';
 import { getTopicsByCategory, type TopicCategory } from '../domain/topics';
 import { COPY, taskLanguageLabel } from './copy';
 
@@ -93,6 +94,16 @@ export function feedbackModeKeyboard(
     .text(feedbackLabel('source', COPY.buttons.feedbackSource), 'set:feedback:source')
     .row()
     .text(COPY.buttons.back, 'cfg:back');
+}
+
+/** One button per tip tier, each carrying a `tip:<stars>` callback. */
+export function tipKeyboard(): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  TIP_TIERS.forEach((stars, index) => {
+    if (index > 0) keyboard.row();
+    keyboard.text(`⭐ ${stars}`, `tip:${stars}`);
+  });
+  return keyboard;
 }
 
 export function levelKeyboard(values: Pick<SettingsKeyboardValues, 'level'>): InlineKeyboard {

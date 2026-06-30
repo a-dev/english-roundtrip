@@ -11,9 +11,6 @@ Gemini for generation and grading.
 
 Telegram name of the production bot: **@english_roundtrip_bot**
 
-> **Status:** "English Roundtrip" (any-source-language → English) is the evolution
-> of the experimental "RE Trainer" (RU→EN only) predecessor.
-
 - **Architecture & rationale:** [`docs/context.md`](docs/context.md), [`docs/prd.md`](docs/prd.md)
 - **Model choice:** [`docs/model.md`](docs/model.md)
 
@@ -46,14 +43,14 @@ Three values are **secrets** (set in Cloudflare, never committed). Everything
 else is non-secret **config** in `wrangler.toml` `[vars]`. Per-user preferences
 (task language, feedback mode, level) live in **D1**, not in config.
 
-| Name                | Kind   | Where it lives                                  | Notes |
-| ------------------- | ------ | ----------------------------------------------- | ----- |
-| `BOT_TOKEN`         | secret | `wrangler secret` (prod) / `.dev.vars` (local)  | From @BotFather; separate bot per environment. |
-| `GEMINI_API_KEY`    | secret | `wrangler secret` (prod) / `.dev.vars` (local)  | From Google AI Studio. |
-| `WEBHOOK_SECRET`    | secret | `wrangler secret` (prod) / `.dev.vars` (local)  | Any long random string; must match `set-webhook`. |
-| `GEMINI_MODEL`      | var    | `wrangler.toml` `[vars]` (override in `.dev.vars`) | See [`docs/model.md`](docs/model.md). |
-| `COOLDOWN_SECONDS`  | var    | `wrangler.toml` `[vars]`                         | Per-user AI cooldown. |
-| `ANTI_REPEAT_WINDOW`| var    | `wrangler.toml` `[vars]`                         | Recent-sentence memory to avoid repeats. |
+| Name                 | Kind   | Where it lives                                     | Notes                                             |
+| -------------------- | ------ | -------------------------------------------------- | ------------------------------------------------- |
+| `BOT_TOKEN`          | secret | `wrangler secret` (prod) / `.dev.vars` (local)     | From @BotFather; separate bot per environment.    |
+| `GEMINI_API_KEY`     | secret | `wrangler secret` (prod) / `.dev.vars` (local)     | From Google AI Studio.                            |
+| `WEBHOOK_SECRET`     | secret | `wrangler secret` (prod) / `.dev.vars` (local)     | Any long random string; must match `set-webhook`. |
+| `GEMINI_MODEL`       | var    | `wrangler.toml` `[vars]` (override in `.dev.vars`) | See [`docs/model.md`](docs/model.md).             |
+| `COOLDOWN_SECONDS`   | var    | `wrangler.toml` `[vars]`                           | Per-user AI cooldown.                             |
+| `ANTI_REPEAT_WINDOW` | var    | `wrangler.toml` `[vars]`                           | Recent-sentence memory to avoid repeats.          |
 
 The Worker validates these at the request boundary ([`src/config.ts`](src/config.ts));
 a missing secret makes every request fail closed, so set them before deploying.

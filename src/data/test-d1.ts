@@ -11,8 +11,10 @@ export class TestD1 {
   readonly #sqlite = new Database(':memory:');
 
   async migrate(): Promise<void> {
-    const migration = await Bun.file(new URL('./migrations/0001_init.sql', import.meta.url)).text();
-    this.#sqlite.exec(migration);
+    for (const file of ['0001_init.sql', '0002_tips_and_cap.sql']) {
+      const sql = await Bun.file(new URL(`./migrations/${file}`, import.meta.url)).text();
+      this.#sqlite.exec(sql);
+    }
   }
 
   asD1(): D1Database {

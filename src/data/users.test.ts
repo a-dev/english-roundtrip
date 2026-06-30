@@ -28,7 +28,21 @@ test('migration stores onboarding and feedback-mode fields without the legacy fe
     'level',
     'created_at',
     'updated_at',
+    'role',
   ]);
+});
+
+test('role defaults to null and round-trips through setRole', async () => {
+  const users = createUsersRepository(testD1.asD1());
+
+  expect((await users.getOrCreateUser(7)).role).toBeNull();
+
+  const promoted = await users.setRole(7, 'premium');
+  expect(promoted.role).toBe('premium');
+  expect((await users.getOrCreateUser(7)).role).toBe('premium');
+
+  const cleared = await users.setRole(7, null);
+  expect(cleared.role).toBeNull();
 });
 
 test('getOrCreateUser provisions an idempotent default profile', async () => {

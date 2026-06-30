@@ -122,8 +122,38 @@ export function createStatsRepository(db: D1Database, options: StatsRepositoryOp
     return buildStats(row, await loadWeakCategories(telegramId));
   }
 
+  /** Effective count for today; a stale daily_count_date reads as 0. */
+  async function getDailyCount(telegramId: number): Promise<number> {
+    await ensureStats(telegramId);
+    const row = await first<{ count: number }>(
+      db,
+      `SELECT CASE WHEN daily_count_date = ? THEN daily_count ELSE 0 END AS count
+         FROM stats WHERE telegram_id = ?`,
+      [toDateKey(now()), telegramId],
+    );
+    return row?.count ?? 0;
+  }
+
+  /** Self-resetting increment: a new UTC day starts the count at 1. */
+  async function incrementDailyCount(telegramId: number): Promise<void> {
+    await ensureStats(telegramId);
+    const today = toDateKey(now());
+    await run(
+      db,
+      `UPDATE stats
+          SET daily_count = CASE WHEN daily_count_date = ? THEN daily_count + 1 ELSE 1 END,
+              daily_count_date = ?
+        WHERE telegram_id = ?`,
+      [today, today, telegramId],
+    );
+  }
+
   return {
     getStats,
+
+    getDailyCount,
+
+    incrementDailyCount,
 
     async recordResult(telegramId: number, result: RecordResultInput): Promise<Stats> {
       await users.ensureUser(telegramId);

@@ -1,6 +1,7 @@
 import type { Config } from '../config';
 import { createSessionsRepository } from './sessions';
 import { createStatsRepository } from './stats';
+import { createTipsRepository } from './tips';
 import { createUsersRepository } from './users';
 
 export interface DataLayerOptions {
@@ -26,6 +27,7 @@ export function createDataLayer(
       now: options.now,
       weakCategoryLimit: options.weakCategoryLimit,
     }),
+    tips: createTipsRepository(config.DB),
   };
 }
 
