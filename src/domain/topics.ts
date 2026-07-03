@@ -37,6 +37,13 @@ export const TOPICS: readonly Topic[] = [
       'Require a/an, the, or zero article; make countability and first or later mention clear.',
   },
   {
+    id: 'determiners-and-quantifiers',
+    category: 'grammar',
+    label: 'Determiners and quantifiers',
+    generationHint:
+      'Require a natural determiner or quantifier, including choice and totality forms such as both, either, neither, neither ... nor, either ... or, all, the whole, each, every, some, any, much, many, few, or several; make number, countability, specificity, and scope clear.',
+  },
+  {
     id: 'prepositions',
     category: 'grammar',
     label: 'Prepositions and prepositional phrases',
@@ -84,6 +91,13 @@ export const TOPICS: readonly Topic[] = [
     label: 'Gerunds and infinitives',
     generationHint:
       'Target verb plus -ing or to-infinitive; reserve meaning-changing verbs for B2–C1.',
+  },
+  {
+    id: 'causative-structures',
+    category: 'grammar',
+    label: 'Causative structures',
+    generationHint:
+      'Target a causative pattern such as make someone do something, have someone do something, get someone to do something, let someone do something, or have/get something done; make who causes the action and who performs it clear.',
   },
   {
     id: 'clauses',

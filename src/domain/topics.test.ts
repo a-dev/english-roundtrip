@@ -6,9 +6,9 @@ test('topic catalog contains a complete, valid grammar and vocabulary curriculum
   const grammarTopics = getTopicsByCategory('grammar');
   const vocabularyTopics = getTopicsByCategory('vocab');
 
-  expect(grammarTopics).toHaveLength(28);
+  expect(grammarTopics).toHaveLength(30);
   expect(vocabularyTopics).toHaveLength(20);
-  expect(TOPICS).toHaveLength(48);
+  expect(TOPICS).toHaveLength(50);
   expect(new Set(TOPICS.map((topic) => topic.id)).size).toBe(TOPICS.length);
 
   expect(TOPICS.map(({ id, category, label }) => ({ id, category, label }))).toEqual([
@@ -16,6 +16,11 @@ test('topic catalog contains a complete, valid grammar and vocabulary curriculum
     { id: 'present-perfect', category: 'grammar', label: 'Perfect tenses' },
     { id: 'past-tenses', category: 'grammar', label: 'Past tenses' },
     { id: 'articles', category: 'grammar', label: 'Articles (a/an/the/∅)' },
+    {
+      id: 'determiners-and-quantifiers',
+      category: 'grammar',
+      label: 'Determiners and quantifiers',
+    },
     { id: 'prepositions', category: 'grammar', label: 'Prepositions and prepositional phrases' },
     { id: 'future-forms', category: 'grammar', label: 'Future forms' },
     { id: 'modal-verbs', category: 'grammar', label: 'Modal verbs' },
@@ -23,6 +28,7 @@ test('topic catalog contains a complete, valid grammar and vocabulary curriculum
     { id: 'reported-speech', category: 'grammar', label: 'Reported speech' },
     { id: 'question-forms', category: 'grammar', label: 'Question forms' },
     { id: 'gerunds-infinitives', category: 'grammar', label: 'Gerunds and infinitives' },
+    { id: 'causative-structures', category: 'grammar', label: 'Causative structures' },
     { id: 'clauses', category: 'grammar', label: 'Relative clauses' },
     { id: 'conditionals', category: 'grammar', label: 'Conditionals' },
     { id: 'wish-if-only', category: 'grammar', label: 'Wish / if only' },
